@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="style.css">
+    <title>sign up</title>
+</head>
+<body>
+    <div id="loader-container" style="display: none;">
+        <div>
+            <div class="loader"></div>
+            <br><br>
+            <div><b>loading</b></div>
+        </div>
+    </div>
+
+    <div class="main-container" id="main-container">
+        <div class="random-container">
+            <h1>Lo<span>c</span>ale</h1>
+    
+            <form id="form-1">
+                <label for="email">Email:</label>
+                <input type="email" id="email" placeholder="example@mail.com"><br>
+                <button type="button" id="register-btn">Register</button>
+            </form>
+    
+            <form id="form-2" style="display: none;">
+                <label for="api-key">api-key:</label>
+                <input type="text" id="api-key" />
+                <button type="button" id="copy-btn">Copy Key</button>
+            </form>
+    
+            <button type="button" id="load-dashboard" style="display: none;">Load Dashboard</button>
+        </div>
+    </div>
+    
+
+    <script>
+        const apiKey = document.getElementById("api-key");
+        const email = document.getElementById("email");
+        const registerBtn = document.getElementById("register-btn");
+        const copyBtn = document.getElementById("copy-btn");
+        const form1 = document.getElementById("form-1");
+        const form2 = document.getElementById("form-2");
+        const dashboardBtn = document.getElementById("load-dashboard");
+        const loader = document.getElementById("loader-container");
+        const mainContainer = document.getElementById("main-container");
+        var apiKeyValid = false;
+
+        registerBtn.addEventListener("click", () => {
+            loader.style.display = "grid";
+            const url = `https://emailvalidation.abstractapi.com/v1/?api_key=076296e1c994415da74461aed0680588&email=${email.value}`
+            httpGetAsync(url, (result) => {
+                result = JSON.parse(result);
+                // console.log(result)
+                if (result.deliverability == "DELIVERABLE" && result.is_valid_format.value) {
+                    fetch(`http://127.0.0.1:8000/register/?email=${email.value}`, {
+                        method: "POST"
+                    })
+                    .then(data => data = data.json())
+                    .then(data => {
+                        var error = "email address aleardy registered";
+                        if (data.message != error) {
+                            form1.style.display = "none";
+                            form2.style.display = "block";
+                            apiKey.value = data.message
+                            apiKeyValid = true;
+                            loader.style.display = "none";
+                        } else {
+                            loader.style.display = "none";
+                            alert(data.message);
+                            loadDashboard();
+                        }
+                    })
+                    .catch(err => console.log(err))
+                } else {
+                    alert("error: invalid email address");
+                    loader.style.display = "none";
+                }
+            });
+        })
+
+        copyBtn.addEventListener("click", () => {
+            if (apiKeyValid) {
+                apiKey.select()
+                document.execCommand("copy");
+
+                alert(`api-key: ${apiKey.value} copied to clipboard`);
+
+                form2.style.display = "none";
+                dashboardBtn.style.display = "block";
+            }
+        })
+
+        dashboardBtn.addEventListener("click", () => {
+            loader.style.display = "grid";
+            setTimeout(loadDashboard, 3000)
+        })
+
+        function loadDashboard() {
+            mainContainer.innerHTML = dashboardData;
+            loader.style.display = "none";
+            configureDashboard();
+        }
+
+        var dashboardData =
+        `
+        <div class="dashboard" id="dashboard">
+        <form class="search-area">
+
+            <select id="search-option">
+                <option value="search">General Search</option>
+                <option value="regions">All Regions</option>
+                <option value="lgas">All LGAs</option>
+                <option value="states">All States</option>
+            </select>
+
+            <br><br>
+
+            <label for="query">query:</label>
+            <input type="text" id="query">
+            
+            <br><br>
+
+            <label for="api-key">api-key:</label>
+            <input type="text" id="api-key">
+
+            <button type="button" id="search-btn">search</button>
+        </form>
+        </div><br><br>
+        <div id="table-container">
+
+        </div>
+        `;
+        
+        async function httpGetAsync(url, callback) {
+            const xmlHttp = new XMLHttpRequest();
+            xmlHttp.onreadystatechange = function() {
+                if (xmlHttp.readyState === 4 && xmlHttp.status === 200)
+                callback(xmlHttp.responseText);
+            }
+
+            xmlHttp.open("GET", url, true); // true for asynchronous
+            xmlHttp.send(null);
+        }
+
+        function configureDashboard() {
+            setTimeout(() => {
+                const query = document.getElementById("query");
+                const apiKey = document.getElementById("api-key");
+                const searchBtn = document.getElementById("search-btn");
+                const searchOption = document.getElementById("search-option");
+                const tableContainer = document.getElementById("table-container");
+
+                const defaultOption = searchOption.value;
+                // console.log(searchOption.value);
+
+                __oneThing(searchOption, defaultOption, query);
+
+                searchBtn.addEventListener("click", () => {
+                    if (searchOption.value == defaultOption) {
+                        if (query.value && apiKey.value) {
+                            fetch(`http://127.0.0.1:8000/search/?query=${query.value}`, {
+                                    method: "GET",
+                                    headers: {"api-key": apiKey.value}
+                            })
+                            .then(data => data = data.json())
+                            .then(data => {
+                                // handle returned data here
+                                
+                                const table = handleReturnedData(searchOption.value, data);
+                                tableContainer.innerHTML = table;
+                                console.log(data);
+
+                                
+                            })
+                            .catch(err => console.log(err))
+                        }
+                    } else {
+                        if (apiKey.value) {
+                            fetch(`http://127.0.0.1:8000/${searchOption.value}/`, {
+                                    method: "GET",
+                                    headers: {"api-key": apiKey.value}
+                            })
+                            .then(data => data = data.json())
+                            .then(data => {
+                                // handle returned data here
+
+                                const table = handleReturnedData(searchOption.value, data);
+                                tableContainer.innerHTML = table;
+                                console.log(data);
+                            })
+                            .catch(err => console.log(err))
+                        }
+                    }
+                })
+            }, 2000)
+        }
+
+        // if (true) {
+        //     loadDashboard();
+        // }
+
+        function __oneThing(searchOption, defaultOption, inputHolder) {
+            searchOption.onchange = function() {
+                if (searchOption.value != defaultOption) {
+                    inputHolder.disabled = true;
+                } else {
+                    inputHolder.disabled = false;
+                }
+            }
+        }
+
+
+
+        function handleReturnedData(id, data) {
+            if (id == "search") {
+
+                // data.regions
+                // data.states
+                // data.lgas
+
+                // regions
+                // data.regions[index].id
+                // data.regions[index].name
+
+                // states
+                // data.states[index].id
+                // data.states[index].name
+                // data.states[index].region_id
+
+                // lgas
+                // data.lgas[index].id
+                // data.lgas[index].name
+                // data.lgas[index].state_id
+
+                let html = '';
+
+                // Regions table
+                html += '<h2>Regions</h2>';
+                html += '<table border="1">';
+                html += '<tr><th>ID</th><th>Name</th></tr>';
+                data.regions.forEach(region => {
+                    html += `<tr><td>${region.id}</td><td>${region.name}</td></tr>`;
+                });
+                html += '</table><br><br><br>';
+
+                // States table
+                html += '<h2>States</h2>';
+                html += '<table border="1">';
+                html += '<tr><th>ID</th><th>Name</th><th>Region ID</th></tr>';
+                data.states.forEach(state => {
+                    html += `<tr><td>${state.id}</td><td>${state.name}</td><td>${state.region_id}</td></tr>`;
+                });
+                html += '</table><br><br><br>';
+
+                // LGAs table
+                html += '<h2>LGAs</h2>';
+                html += '<table border="1">';
+                html += '<tr><th>ID</th><th>Name</th><th>State ID</th></tr>';
+                data.lgas.forEach(lga => {
+                    html += `<tr><td>${lga.id}</td><td>${lga.name}</td><td>${lga.state_id}</td></tr>`;
+                });
+                html += '</table>';
+
+                return html;
+            }
+
+            if (id == "regions") {
+
+                // regions
+                // data.[index].id
+                // data.[index].name
+
+                let html = '';
+
+                html += '<h2>Regions</h2>';
+                html += '<table border="1">';
+                html += '<tr><th>ID</th><th>Name</th></tr>';
+                data.forEach(region => {
+                    html += `<tr><td>${region.id}</td><td>${region.name}</td></tr>`;
+                });
+                html += '</table>';
+
+                return html;
+            }
+
+            if (id == "lgas") {
+
+                // lgas
+                // data[index].id
+                // data[index].name
+                // data[index].state_id
+
+                let html = '';
+
+                html += '<h2>LGAs</h2>';
+                html += '<table border="1">';
+                html += '<tr><th>ID</th><th>Name</th><th>State ID</th></tr>';
+                data.forEach(lga => {
+                    html += `<tr><td>${lga.id}</td><td>${lga.name}</td><td>${lga.state_id}</td></tr>`;
+                });
+                html += '</table>';
+
+                return html;
+            }
+
+            if (id == "states") {
+
+                // states
+                // data[index].id
+                // data[index].name
+                // data[index].region_id
+
+                let html = '';
+
+                html += '<h2>States</h2>';
+                html += '<table border="1">';
+                html += '<tr><th>ID</th><th>Name</th><th>Region ID</th></tr>';
+                data.forEach(state => {
+                    html += `<tr><td>${state.id}</td><td>${state.name}</td><td>${state.region_id}</td></tr>`;
+                });
+                html += '</table>';
+
+                return html;
+            }
+        }
+    </script>
+    <br><br><br>
+
+</body>
+</html>
